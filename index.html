@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Hub</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#191919;color:#E6E6E6;font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;-webkit-text-size-adjust:100%}
+a{color:inherit;text-decoration:none}
+.mut{color:#9B9B9B}
+#app{padding:6px}
+/* Kreise */
+.row{display:flex;justify-content:space-around;align-items:flex-start;gap:14px;padding:8px 4px;flex-wrap:wrap}
+.rw{text-align:center;display:block}
+.lab{margin-bottom:6px;font-size:12px;color:#9B9B9B}
+.ring{position:relative;margin:0 auto}
+.ring svg{position:absolute;inset:0}
+.rc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.rc b{font-size:24px;font-weight:500;line-height:1.1}
+.rc span{font-size:11px;color:#9B9B9B}
+/* Woche */
+.wk{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.wk::-webkit-scrollbar{display:none}
+section{flex:0 0 100%;scroll-snap-align:start}
+.wl{margin:0 0 6px 2px;font-size:12px;color:#9B9B9B;display:flex;justify-content:space-between}
+.grid{display:grid;grid-template-columns:26px repeat(7,minmax(0,1fr));gap:3px}
+.dh{height:34px;text-align:center;color:#9B9B9B;font-size:12px;line-height:1.3}
+.dh span{font-size:10px}
+.today .dh{color:#E6E6E6;font-weight:500}
+.tz,.dz{position:relative}
+.dz{background:#202020 repeating-linear-gradient(to bottom,transparent 0 25px,#262626 25px 26px);border-radius:6px}
+.today .dz{background-color:#242A2F}
+.tl{position:absolute;right:3px;transform:translateY(-6px);font-size:10px;color:#6F6F6F}
+.ev{position:absolute;left:2px;right:2px;border-radius:4px;padding:2px 4px;font-size:11px;line-height:1.2;overflow:hidden;cursor:pointer;color:#EDEDED}
+.ev.sel{outline:1px solid #ddd}
+.info{background:#202020;border-radius:8px;padding:8px 10px;margin-top:8px;min-height:20px}
+.leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#9B9B9B}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+/* Fächer */
+.fl{padding:4px;display:flex;flex-direction:column;gap:12px}
+.r{display:flex;align-items:center;gap:14px}
+.c{flex:0 0 64px;height:64px;border-radius:50%;border:3px solid;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.c b{font-size:20px;font-weight:500;line-height:1.1}
+.c span{font-size:10px;color:#9B9B9B}
+.m{flex:1;min-width:0}
+.t{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}
+.t .p{margin-left:auto}
+.bar{height:10px;background:#2C2C2C;border-radius:5px;overflow:hidden}
+.bar div{height:100%;border-radius:5px}
+/* Noten */
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{padding:7px 8px;text-align:center;border-bottom:1px solid #262626;font-size:12px}
+th{color:#9B9B9B;font-weight:400}
+td:first-child,th:first-child{text-align:left}
+.lk{font-size:10px;color:#7F9A82;border:1px solid #3F4D3A;border-radius:4px;padding:0 4px}
+.tw{overflow-x:auto}
+.err{color:#9B9B9B;padding:20px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app"><div class="err">Lädt …</div></div>
+<script>
+(function(){
+var TYPE_COL={"Unterricht":"#34414F","Klausur":"#5B7A99","Termin":"#56705A","Training":"#3F4D3A"};
+var FACH_COL={"Mathe":"#5B7A99","SoWi":"#7F9A82","Englisch":"#6E8FA8","Informatik":"#4F6B63","Deutsch":"#8FA58C"};
+var DAYS=["So","Mo","Di","Mi","Do","Fr","Sa"];
+var app=document.getElementById("app");
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function notion(id){return "https://www.notion.so/"+String(id).replace(/-/g,"")}
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function parse(s){var p=s.slice(0,10).split("-");return new Date(+p[0],+p[1]-1,+p[2])}
+var today=new Date();today.setHours(0,0,0,0);
+function daysUntil(s){return Math.round((parse(s)-today)/864e5)}
+function hm(t){var p=t.split(":");return +p[0]+(+p[1])/60}
+function dm(d){return String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")+"."}
+
+function ring(value,sub,color,pct,href,label){
+  var r=41,c=2*Math.PI*r,arc="",base=color,bw=3;
+  if(pct!=null){arc="<circle cx='46' cy='46' r='41' fill='none' stroke='"+color+"' stroke-width='5' stroke-linecap='round' stroke-dasharray='"+(c*pct).toFixed(1)+" "+c.toFixed(1)+"' transform='rotate(-90 46 46)'/>";base="#2C2C2C";bw=5}
+  var h="<div class='lab'>"+esc(label)+"</div><div class='ring' style='width:92px;height:92px'><svg width='92' height='92' viewBox='0 0 92 92'><circle cx='46' cy='46' r='41' fill='none' stroke='"+base+"' stroke-width='"+bw+"'/>"+arc+"</svg><div class='rc'><b>"+esc(value)+"</b>"+(sub?"<span>"+esc(sub)+"</span>":"")+"</div></div>";
+  return href?"<a class='rw' href='"+href+"' target='_blank' rel='noopener'>"+h+"</a>":"<div class='rw'>"+h+"</div>";
+}
+function fmtSchnitt(x){return x.toFixed(2).replace(".",",")}
+
+function nextFerien(d){
+  return (d.ferien||[]).filter(function(x){return parse(x.end)>=today}).sort(function(a,b){return parse(a.start)-parse(b.start)})[0];
+}
+function inFerien(d,day){return (d.ferien||[]).some(function(f){return day>=parse(f.start)&&day<=parse(f.end)})}
+
+function kreise(d){
+  var f=nextFerien(d),h="<div class='row'>";
+  if(f){var n=daysUntil(f.start);h+=ring(n>0?n:"Ferien",n>0?"Tage":"","#7F9A82",null,null,f.name)}
+  h+=ring(fmtSchnitt(d.abi.schnitt),"","#5B7A99",null,notion(d.pages.noten),"Abi-Schnitt");
+  h+=ring(d.abi.punkte,"Punkte","#5B7A99",d.abi.punkte/900,notion(d.pages.noten),"Abi-Punkte");
+  return h+"</div>";
+}
+
+function eventsFor(d,day){
+  var key=iso(day),wd=day.getDay(),list=[];
+  var dated=(d.events||[]).filter(function(e){return e.date===key});
+  var blockers=dated.filter(function(e){return e.type==="Klausur"});
+  if(!inFerien(d,day)){
+    ((d.stundenplan||{})[wd]||[]).forEach(function(l){
+      var s=hm(l[1]),e=hm(l[2]);
+      if(blockers.some(function(k){return s<hm(k.end)&&e>hm(k.start)}))return;
+      list.push({title:l[0],start:l[1],end:l[2],type:"Unterricht",detail:l[3]||""});
+    });
+  }
+  (d.wiederkehrend||[]).forEach(function(r){
+    if(r.wd===wd&&!(r.nichtInFerien&&inFerien(d,day))&&(r.ausnahmen||[]).indexOf(key)<0)list.push({title:r.title,start:r.start,end:r.end,type:r.type,detail:r.detail||""});
+  });
+  return list.concat(dated).sort(function(a,b){return hm(a.start)-hm(b.start)});
+}
+
+function woche(d){
+  var P=26,H0=7,H1=19,H=(H1-H0)*P,start=new Date(today);start.setDate(start.getDate()-start.getDay());
+  var infos=[],html="<div class='wk' id='wk'>";
+  for(var w=0;w<2;w++){
+    var ws=new Date(start);ws.setDate(ws.getDate()+7*w);var we=new Date(ws);we.setDate(we.getDate()+6);
+    html+="<section><div class='wl'><span>"+(w===0?"Diese Woche":"Nächste Woche")+" · So "+dm(ws)+" – Sa "+dm(we)+"</span><span>"+(w===0?"wischen →":"← zurück")+"</span></div><div class='grid'>";
+    html+="<div><div class='dh'></div><div class='tz' style='height:"+H+"px'>";
+    for(var h=H0;h<H1;h++)html+="<div class='tl' style='top:"+((h-H0)*P)+"px'>"+h+"</div>";
+    html+="</div></div>";
+    for(var i=0;i<7;i++){
+      var day=new Date(ws);day.setDate(day.getDate()+i);
+      html+="<div class='"+(day.getTime()===today.getTime()?"today":"")+"'><div class='dh'>"+DAYS[i]+"<br><span>"+dm(day)+"</span></div><div class='dz' style='height:"+H+"px'>";
+      eventsFor(d,day).forEach(function(ev){
+        var s=Math.max(hm(ev.start),H0),e=Math.min(hm(ev.end),H1);if(e<=H0||s>=H1)return;
+        var id=infos.length;
+        infos.push("<b>"+esc(ev.title)+"</b> · "+DAYS[i]+" "+dm(day)+" · "+esc(ev.start)+"–"+esc(ev.end)+" · "+esc(ev.type)+(ev.detail?"<br><span class='mut'>"+esc(ev.detail)+"</span>":""));
+        html+="<div class='ev' data-i='"+id+"' style='top:"+Math.round((s-H0)*P+1)+"px;height:"+Math.round(Math.max((e-s)*P-2,12))+"px;background:"+(TYPE_COL[ev.type]||"#34414F")+"'>"+esc(ev.title)+"</div>";
+      });
+      html+="</div></div>";
+    }
+    html+="</div></section>";
+  }
+  html+="</div><div class='info' id='info'><span class='mut'>Termin antippen für Details</span></div><div class='leg'>";
+  for(var t in TYPE_COL)html+="<span><i style='background:"+TYPE_COL[t]+"'></i>"+t+"</span>";
+  html+="</div>";
+  setTimeout(function(){
+    var wk=document.getElementById("wk"),info=document.getElementById("info");
+    wk.addEventListener("click",function(e){var b=e.target.closest(".ev");if(!b)return;
+      Array.prototype.forEach.call(wk.querySelectorAll(".ev.sel"),function(x){x.classList.remove("sel")});
+      b.classList.add("sel");info.innerHTML=infos[+b.dataset.i];});
+  },0);
+  return html;
+}
+
+function faecher(d){
+  var h="<div class='fl'>";
+  (d.klausuren||[]).forEach(function(k){
+    var col=FACH_COL[k.fach]||"#5B7A99",n=k.date?daysUntil(k.date):"–",p=k.vorbereitung||0,page=(d.pages.faecher||{})[k.fach];
+    h+="<a class='r' href='"+(page?notion(page):"#")+"' target='_blank' rel='noopener'><div class='c' style='border-color:"+col+"'><b>"+n+"</b><span>Tage</span></div>"+
+       "<div class='m'><div class='t'><span>"+esc(k.fach)+"</span><span class='mut'>"+esc(k.name)+"</span><span class='p'>"+Math.round(p*100)+" %</span></div>"+
+       "<div class='bar'><div style='width:"+Math.round(p*100)+"%;background:"+col+"'></div></div></div></a>";
+  });
+  return h+"</div>";
+}
+
+function noten(d){
+  var cols=["Q1.1","Q1.2","Q2.1","Q2.2","Abi"];
+  var h="<div class='row'>"+ring(fmtSchnitt(d.abi.schnitt),"","#5B7A99",null,null,"Abi-Schnitt")+ring(d.abi.punkte,"Punkte","#5B7A99",d.abi.punkte/900,null,"Abi-Punkte")+"</div>";
+  h+="<div class='tw'><table><tr><th>Fach</th>";
+  cols.forEach(function(c){h+=(c==="Q2.1"||c==="Q2.2")?"<th>"+c+"<br><span class='mut'>K · S · Note</span></th>":"<th>"+c+"</th>"});
+  h+="<th>Ø</th></tr>";
+  (d.noten||[]).forEach(function(r){
+    var vals=[];h+="<tr><td>"+esc(r.fach)+(r.lk?" <span class='lk'>LK</span>":"")+"</td>";
+    cols.forEach(function(c){
+      var v=r[c]||{},n=v.note,cls=v.prognose?" class='mut'":"";
+      if(n!=null&&c!=="Abi")vals.push(n);
+      var t=n==null?"–":n;
+      if(c==="Q2.1"||c==="Q2.2")h+="<td"+cls+">"+(v.klausur==null?"–":v.klausur)+" · "+(v.somi==null?"–":v.somi)+" · <b>"+t+"</b></td>";
+      else h+="<td"+cls+">"+t+"</td>";
+    });
+    var avgv=vals.length?(vals.reduce(function(a,b){return a+b},0)/vals.length).toFixed(1).replace(".",","):"–";
+    h+="<td><b>"+avgv+"</b></td></tr>";
+  });
+  h+="</table></div><p class='mut' style='font-size:11px;margin:8px 2px'>Grau = Prognose · "+esc(d.abi.annahme||"")+"</p>";
+  return h;
+}
+
+/* ---------- Sport & Gesundheit ---------- */
+var SAGE="#7F9A82",BLUE="#5B7A99",LBLUE="#6E8FA8",DGREEN="#4F6B63",WARN="#9C7F5E";
+var SHADES=["#5B7A99","#7F9A82","#6E8FA8","#4F6B63","#8FA58C","#3F5A73"];
+function empty(t){return "<div class='err'>"+esc(t||"Noch keine Daten")+"</div>"}
+function S(d){return d.sport||{}}
+function lastDays(d,n){return (S(d).tage||[]).filter(function(x){return daysUntil(x.date)<=0&&daysUntil(x.date)>-n})}
+function avg(arr,k){var v=arr.map(function(x){return x[k]}).filter(function(x){return x!=null});return v.length?v.reduce(function(a,b){return a+b},0)/v.length:null}
+function fmt(x,dig){return x==null?"–":x.toFixed(dig||0).replace(".",",")}
+function sectionTitle(t,sub){return "<div style='display:flex;justify-content:space-between;align-items:baseline;margin:2px 2px 10px'><span style='font-size:14px'>"+esc(t)+"</span><span class='mut' style='font-size:11px'>"+esc(sub||"")+"</span></div>"}
+
+function sportkreise(d){
+  var s=S(d),w=lastDays(d,7),sl=avg(w,"schlaf"),pr=avg(w,"protein"),ref=(s.richtwerte||{});
+  var gw=(s.tage||[]).filter(function(x){return x.gewicht!=null}).slice(-1)[0];
+  var h="<div class='row'>";
+  h+=ring(s.trainings_woche!=null?s.trainings_woche:"–","Trainings",SAGE,null,null,"Diese Woche");
+  h+=ring(fmt(sl,1),"h Ø 7 Tage",BLUE,sl!=null?Math.min(sl/(ref.schlaf||7.5),1):0,null,"Schlaf");
+  h+=ring(pr!=null?Math.round(pr):"–","g Ø 7 Tage",DGREEN,null,null,"Protein");
+  h+=ring(gw?fmt(gw.gewicht,1):"–","kg",LBLUE,null,null,"Gewicht");
+  return h+"</div>";
+}
+
+function muskeln(d){
+  var m=S(d).muskeln_woche||[];
+  var h=sectionTitle("Sätze pro Muskelgruppe","diese Woche (So–Sa)");
+  if(!m.length)return h+empty("Noch keine Trainings diese Woche");
+  var max=Math.max.apply(null,m.map(function(g){var s=0;for(var k in g.unter)s+=g.unter[k];return s}).concat([1]));
+  m.forEach(function(g){
+    var tot=0,seg="",leg=[],i=0;for(var k in g.unter)tot+=g.unter[k];
+    for(var k2 in g.unter){var v=g.unter[k2];if(!v){i++;continue}
+      seg+="<div style='width:"+(v/max*100)+"%;background:"+SHADES[i%SHADES.length]+"'></div>";
+      leg.push("<span><i style='background:"+SHADES[i%SHADES.length]+"'></i>"+esc(k2)+" "+fmt(v,v%1?1:0)+"</span>");i++}
+    h+="<div style='margin-bottom:12px'><div style='display:flex;justify-content:space-between;margin-bottom:4px'><span>"+esc(g.gruppe)+"</span><span class='mut'>"+fmt(tot,tot%1?1:0)+" Sätze</span></div>"+
+       "<div style='display:flex;height:12px;background:#2C2C2C;border-radius:6px;overflow:hidden;gap:1px'>"+seg+"</div>"+
+       "<div class='leg' style='margin-top:5px;font-size:10px;gap:10px'>"+leg.join("")+"</div></div>";
+  });
+  return h;
+}
+
+function line(points,color,w,h,refY){
+  if(!points.length)return "";
+  var xs=points.map(function(p){return parse(p[0]).getTime()}),ys=points.map(function(p){return p[1]});
+  if(refY!=null)ys=ys.concat([refY]);
+  var x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs),y0=Math.min.apply(null,ys),y1=Math.max.apply(null,ys);
+  if(x1===x0)x1=x0+1;if(y1===y0){y1+=1;y0-=1}var pad=(y1-y0)*0.15;y0-=pad;y1+=pad;
+  function X(t){return 4+(t-x0)/(x1-x0)*(w-8)}function Y(v){return h-4-(v-y0)/(y1-y0)*(h-8)}
+  var dpath=points.map(function(p,i){return (i?"L":"M")+X(parse(p[0]).getTime()).toFixed(1)+" "+Y(p[1]).toFixed(1)}).join(" ");
+  var r="<svg width='100%' viewBox='0 0 "+w+" "+h+"' preserveAspectRatio='none' style='display:block;height:"+h+"px'>";
+  if(refY!=null)r+="<line x1='0' x2='"+w+"' y1='"+Y(refY)+"' y2='"+Y(refY)+"' stroke='#555' stroke-dasharray='4 4' stroke-width='1'/>";
+  r+="<path d='"+dpath+"' fill='none' stroke='"+color+"' stroke-width='2' stroke-linejoin='round' vector-effect='non-scaling-stroke'/>";
+  var lp=points[points.length-1];r+="<circle cx='"+X(parse(lp[0]).getTime())+"' cy='"+Y(lp[1])+"' r='3' fill='"+color+"'/>";
+  return r+"</svg>";
+}
+
+function kraft(d){
+  var k=S(d).kraft||[],h=sectionTitle("Kraftverlauf","geschätztes 1RM (kg)");
+  if(!k.length)return h+empty("Übungen für den Kraftverlauf werden nach deinem ersten Training festgelegt");
+  h+="<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px'>";
+  k.forEach(function(u,i){
+    var p=u.punkte||[],last=p.length?p[p.length-1][1]:null,first=p.length?p[0][1]:null,delta=(last!=null&&first!=null)?last-first:null;
+    h+="<div style='background:#202020;border-radius:8px;padding:10px'><div style='display:flex;justify-content:space-between;align-items:baseline'><span>"+esc(u.uebung)+"</span><span><b style='font-weight:500'>"+fmt(last,1)+"</b> <span class='mut' style='font-size:11px'>"+(delta!=null?(delta>=0?"+":"")+fmt(delta,1):"")+"</span></span></div>"+line(p,SHADES[i%SHADES.length],200,60)+"</div>";
+  });
+  return h+"</div>";
+}
+
+function ernaehrung(d){
+  var s=S(d),w=lastDays(d,7),R=s.richtwerte||{},h=sectionTitle("Ernährung","Ø letzte 7 Tage · Anteil am Richtwert");
+  if(!w.length)return h+empty("Noch keine Ernährungsdaten");
+  var rows=[["Kalorien","kcal","kcal",R.kcal],["Protein","protein","g",R.protein],["Kohlenhydrate","kh","g",R.kh],["Fett gesättigt","fett_ges","g",R.fett_ges,true],["Fett einfach unges.","fett_einf","g",R.fett_einf],["Fett mehrfach unges.","fett_mehrf","g",R.fett_mehrf],["Zucker","zucker","g",R.zucker,true],["Ballaststoffe","ballast","g",R.ballast],["Magnesium","mg","mg",R.mg],["Calcium","ca","mg",R.ca],["Kalium","k","mg",R.k],["Eisen","fe","mg",R.fe],["Zink","zn","mg",R.zn],["Vitamin D","vitd","µg",R.vitd],["Vitamin B12","b12","µg",R.b12]];
+  h+="<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));column-gap:24px'>";
+  rows.forEach(function(r){
+    var v=avg(w,r[1]);if(v==null&&!r[3])return;
+    var pct=r[3]&&v!=null?v/r[3]:null,col=pct==null?BLUE:(r[4]?(pct>1?WARN:SAGE):(pct<0.7?WARN:SAGE));
+    h+="<div style='margin-bottom:9px'><div style='display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px'><span>"+r[0]+"</span><span class='mut'>"+fmt(v,v!=null&&v<10?1:0)+" "+r[2]+(r[3]?" / "+r[3]+(r[4]?" max":""):"")+"</span></div>"+
+       (r[3]?"<div class='bar' style='height:7px;position:relative'><div style='width:"+Math.min((pct||0)*100,100)+"%;background:"+col+"'></div></div>":"")+"</div>";
+  });
+  return h+"</div><div class='mut' style='font-size:10px;margin-top:4px'>Richtwerte ≈ DGE für männlich 15–19 Jahre; Zucker und gesättigte Fette als Obergrenze.</div>";
+}
+
+function schlaf(d){
+  var ref=(S(d).richtwerte||{}).schlaf||7.5,t=lastDays(d,14).filter(function(x){return x.schlaf!=null}),h=sectionTitle("Schlaf","letzte 14 Tage · Linie = "+fmt(ref,1)+" h");
+  if(!t.length)return h+empty("Noch keine Schlafdaten");
+  var max=Math.max.apply(null,t.map(function(x){return x.schlaf}).concat([ref+1]));
+  h+="<div style='position:relative;height:120px;display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid #262626'>";
+  h+="<div style='position:absolute;left:0;right:0;bottom:"+(ref/max*100)+"%;border-top:1px dashed #555'></div>";
+  t.forEach(function(x){var c=x.schlaf>=ref?SAGE:BLUE;h+="<div title='"+x.date+"' style='flex:1;height:"+(x.schlaf/max*100)+"%;background:"+c+";border-radius:3px 3px 0 0'></div>"});
+  h+="</div><div style='display:flex;gap:4px;margin-top:3px'>";
+  t.forEach(function(x){h+="<div class='mut' style='flex:1;text-align:center;font-size:9px'>"+DAYS[parse(x.date).getDay()]+"</div>"});
+  var a7=avg(lastDays(d,7),"schlaf");
+  return h+"</div><div class='mut' style='font-size:11px;margin-top:6px'>Ø 7 Tage: "+fmt(a7,1)+" h</div>";
+}
+
+function trends(d){
+  var wk=S(d).wochen||[],h=sectionTitle("Trends","Wochendurchschnitte");
+  if(wk.length<2)return h+empty("Trends erscheinen ab zwei Wochen Daten");
+  var items=[["Ø Kalorien","kcal",BLUE],["Ø Protein (g)","protein",DGREEN],["Sätze gesamt","saetze",SAGE],["Ø Gewicht (kg)","gewicht",LBLUE]];
+  h+="<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px'>";
+  items.forEach(function(it){
+    var p=wk.filter(function(x){return x[it[1]]!=null}).map(function(x){return [x.woche,x[it[1]]]});if(!p.length)return;
+    h+="<div style='background:#202020;border-radius:8px;padding:10px'><div style='display:flex;justify-content:space-between'><span>"+it[0]+"</span><b style='font-weight:500'>"+fmt(p[p.length-1][1],it[1]==="gewicht"?1:0)+"</b></div>"+line(p,it[2],200,60)+"</div>";
+  });
+  return h+"</div>";
+}
+
+function splits(d){
+  var sp=S(d).splits||{},keys=Object.keys(sp).filter(function(k){return sp[k]}),h=sectionTitle("Trainingstage pro Split","gesamt");
+  if(!keys.length)return h+empty("Noch keine Trainings");
+  var tot=keys.reduce(function(a,k){return a+sp[k]},0),r=40,c=2*Math.PI*r,off=0,svg="<svg width='110' height='110' viewBox='0 0 110 110'>";
+  keys.forEach(function(k,i){var f=sp[k]/tot;svg+="<circle cx='55' cy='55' r='40' fill='none' stroke='"+SHADES[i%SHADES.length]+"' stroke-width='14' stroke-dasharray='"+(c*f).toFixed(1)+" "+c.toFixed(1)+"' stroke-dashoffset='"+(-off).toFixed(1)+"' transform='rotate(-90 55 55)'/>";off+=c*f});
+  svg+="<text x='55' y='60' text-anchor='middle' fill='#E6E6E6' font-size='16'>"+tot+"</text></svg>";
+  h+="<div style='display:flex;align-items:center;gap:18px'>"+svg+"<div class='leg' style='flex-direction:column;gap:6px'>";
+  keys.forEach(function(k,i){h+="<span><i style='background:"+SHADES[i%SHADES.length]+"'></i>"+esc(k)+" · "+sp[k]+"</span>"});
+  return h+"</div></div>";
+}
+
+function b64(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";var b=atob(s),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+var params=new URLSearchParams(location.search),view=params.get("v")||"kreise";
+var hp=new URLSearchParams(location.hash.slice(1)),key=hp.get("k")||params.get("k");
+if(!key){app.innerHTML="<div class='err'>Kein Schlüssel im Link.</div>";return}
+fetch("data.enc?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(txt){
+  var raw=b64(txt.trim());
+  return crypto.subtle.importKey("raw",b64(key),"AES-GCM",false,["decrypt"]).then(function(k){
+    return crypto.subtle.decrypt({name:"AES-GCM",iv:raw.slice(0,12)},k,raw.slice(12));
+  });
+}).then(function(buf){
+  var d=JSON.parse(new TextDecoder().decode(buf));
+  var fn={kreise:kreise,woche:woche,faecher:faecher,noten:noten,sportkreise:sportkreise,muskeln:muskeln,kraft:kraft,ernaehrung:ernaehrung,schlaf:schlaf,trends:trends,splits:splits}[view]||kreise;
+  app.innerHTML=fn(d);
+}).catch(function(){app.innerHTML="<div class='err'>Konnte Daten nicht laden.</div>"});
+})();
+</script>
+</body>
+</html>
