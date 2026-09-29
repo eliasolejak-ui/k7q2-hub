@@ -7,7 +7,7 @@
 <title>Hub</title>
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;background:#191919;color:#E6E6E6;font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;-webkit-text-size-adjust:100%}
+html,body{margin:0;overflow:hidden;background:#191919;color:#E6E6E6;font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;-webkit-text-size-adjust:100%}
 a{color:inherit;text-decoration:none}
 .mut{color:#9B9B9B}
 #app{padding:6px}
@@ -68,9 +68,10 @@ td:first-child,th:first-child{text-align:left}
 var TYPE_COL={"Unterricht":"#34414F","Klausur":"#5B7A99","Termin":"#56705A","Training":"#3F4D3A"};
 var FACH_COL={"Mathe":"#5B7A99","SoWi":"#7F9A82","Englisch":"#6E8FA8","Informatik":"#4F6B63","Deutsch":"#8FA58C"};
 var DAYS=["So","Mo","Di","Mi","Do","Fr","Sa"];
+var P=26;
 var app=document.getElementById("app");
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
-function notion(id){return "https://www.notion.so/"+String(id).replace(/-/g,"")}
+function notion(id){return "notion://www.notion.so/"+String(id).replace(/-/g,"")}
 function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function parse(s){var p=s.slice(0,10).split("-");return new Date(+p[0],+p[1]-1,+p[2])}
 var today=new Date();today.setHours(0,0,0,0);
@@ -117,7 +118,7 @@ function eventsFor(d,day){
 }
 
 function woche(d){
-  var P=26,H0=7,H1=19,H=(H1-H0)*P,start=new Date(today);start.setDate(start.getDate()-start.getDay());
+  var H0=7,H1=19,H=(H1-H0)*P,start=new Date(today);start.setDate(start.getDate()-start.getDay());
   var infos=[],html="<div class='wk' id='wk'>";
   for(var w=0;w<2;w++){
     var ws=new Date(start);ws.setDate(ws.getDate()+7*w);var we=new Date(ws);we.setDate(we.getDate()+6);
@@ -127,7 +128,7 @@ function woche(d){
     html+="</div></div>";
     for(var i=0;i<7;i++){
       var day=new Date(ws);day.setDate(day.getDate()+i);
-      html+="<div class='"+(day.getTime()===today.getTime()?"today":"")+"'><div class='dh'>"+DAYS[i]+"<br><span>"+dm(day)+"</span></div><div class='dz' style='height:"+H+"px'>";
+      html+="<div class='"+(day.getTime()===today.getTime()?"today":"")+"'><div class='dh'>"+DAYS[i]+"<br><span>"+dm(day)+"</span></div><div class='dz' style='height:"+H+"px;background-image:repeating-linear-gradient(to bottom,transparent 0 "+(P-1)+"px,#262626 "+(P-1)+"px "+P+"px)'>";
       eventsFor(d,day).forEach(function(ev){
         var s=Math.max(hm(ev.start),H0),e=Math.min(hm(ev.end),H1);if(e<=H0||s>=H1)return;
         var id=infos.length;
@@ -308,9 +309,32 @@ fetch("data.enc?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text(
   });
 }).then(function(buf){
   var d=JSON.parse(new TextDecoder().decode(buf));
+  DATA=d;render();
+})['catch'](function(){app.innerHTML="<div class='err'>Konnte Daten nicht laden.</div>"});
+var DATA=null;
+function render(){
+  document.body.style.zoom="";
+  var d=DATA;
   var fn={kreise:kreise,woche:woche,faecher:faecher,noten:noten,sportkreise:sportkreise,muskeln:muskeln,kraft:kraft,ernaehrung:ernaehrung,schlaf:schlaf,trends:trends,splits:splits}[view]||kreise;
   app.innerHTML=fn(d);
-}).catch(function(){app.innerHTML="<div class='err'>Konnte Daten nicht laden.</div>"});
+  fit();
+}
+/* Passt die Grafik an die Höhe des Notion-Embeds an */
+function fit(){
+  var ih=window.innerHeight;if(!ih)return;
+  var sh=Math.ceil(app.getBoundingClientRect().height);
+  if(view==="woche"){
+    var over=sh-12*P,np=Math.max(14,Math.min(46,Math.floor((ih-over-6)/12)));
+    if(np!==P){P=np;app.innerHTML=woche(DATA);sh=Math.ceil(app.getBoundingClientRect().height)}
+  }
+  if(sh<=ih+2)return;
+  /* größte Zoomstufe suchen, bei der alles in die Embed-Höhe passt (Inhalt kann dabei umbrechen) */
+  var lo=0.3,hi=1;
+  for(var i=0;i<9;i++){var z=(lo+hi)/2;document.body.style.zoom=z;
+    if(app.getBoundingClientRect().height<=ih+1)lo=z;else hi=z}
+  document.body.style.zoom=lo.toFixed(3);
+}
+var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){if(DATA)render()},150)});
 })();
 </script>
 </body>
